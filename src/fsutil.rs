@@ -264,9 +264,40 @@ pub fn disk_info() -> Option<(u64, u64)> {
     Some((s.f_blocks as u64 * frsize, s.f_bavail as u64 * frsize))
 }
 
-/// The user TCC database is only readable with Full Disk Access.
+/// Full Disk Access check: these locations are only readable with it.
+/// Several probes are used because not every Mac has every folder.
 pub fn has_full_disk_access() -> bool {
-    fs::File::open(home().join("Library/Application Support/com.apple.TCC/TCC.db")).is_ok()
+    let h = home();
+    let files = [
+        h.join("Library/Application Support/com.apple.TCC/TCC.db"),
+        PathBuf::from("/Library/Application Support/com.apple.TCC/TCC.db"),
+    ];
+    let dirs = [
+        h.join("Library/Safari"),
+        h.join("Library/Mail"),
+        h.join("Library/Messages"),
+        h.join(".Trash"),
+    ];
+    files.iter().any(|f| fs::File::open(f).is_ok()) || dirs.iter().any(|d| fs::read_dir(d).is_ok())
+}
+
+/// The .app bundle we're running from, if any (None when run from Terminal).
+pub fn app_bundle() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    exe.ancestors()
+        .find(|p| p.extension().is_some_and(|e| e == "app"))
+        .map(Path::to_path_buf)
+}
+
+/// Starts a fresh copy of the app and quits this one — macOS only applies a
+/// newly granted Full Disk Access to a freshly started app.
+pub fn relaunch() {
+    if let Some(app) = app_bundle() {
+        let script = format!("sleep 1; open -n {:?}", app);
+        if Command::new("/bin/sh").arg("-c").arg(script).spawn().is_ok() {
+            std::process::exit(0);
+        }
+    }
 }
 
 pub fn open_fda_settings() {

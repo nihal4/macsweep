@@ -198,6 +198,33 @@ impl App {
                     ui.add_space(2.0);
                 }
 
+                if !self.sys.fda {
+                    ui.add_space(10.0);
+                    egui::Frame::new()
+                        .fill(theme::WARN.gamma_multiply(0.3))
+                        .corner_radius(10)
+                        .inner_margin(8)
+                        .show(ui, |ui| {
+                            ui.set_width(ui.available_width());
+                            ui.vertical(|ui| {
+                            ui.label(theme::semi(format!("{}  Full Disk Access is off", icon::LOCK_SIMPLE), 12.5));
+                            if fsutil::app_bundle().is_none() {
+                                ui.label(theme::dim("You're running from Terminal. Open MacSweep.app from Applications instead.", 11.0));
+                            } else {
+                                ui.label(theme::dim("Turn it on, then relaunch. After a rebuild, remove MacSweep from the list and add it again.", 11.0));
+                            }
+                            ui.horizontal(|ui| {
+                                if ui.link(theme::text("Open Settings", 12.0)).clicked() {
+                                    fsutil::open_fda_settings();
+                                }
+                                if fsutil::app_bundle().is_some() && ui.link(theme::text("Relaunch", 12.0)).clicked() {
+                                    fsutil::relaunch();
+                                }
+                            });
+                            });
+                        });
+                }
+
                 // Live disk + Trash at the bottom — always up to date.
                 ui.with_layout(Layout::bottom_up(egui::Align::Min), |ui| {
                     self.trash_row(ui, now);
@@ -215,21 +242,6 @@ impl App {
                             ui.label(theme::ic(icon::HARD_DRIVE, 15.0));
                             ui.label(theme::semi("Macintosh HD", 13.0));
                         });
-                    }
-                    if !self.sys.fda {
-                        ui.add_space(6.0);
-                        egui::Frame::new()
-                            .fill(theme::WARN.gamma_multiply(0.3))
-                            .corner_radius(10)
-                            .inner_margin(8)
-                            .show(ui, |ui| {
-                                ui.set_width(ui.available_width());
-                                ui.label(theme::semi(format!("{}  Full Disk Access is off", icon::LOCK_SIMPLE), 12.5));
-                                ui.label(theme::dim("Trash and Mail can't be scanned.", 11.0));
-                                if ui.link(theme::text("Open Settings", 12.0)).clicked() {
-                                    fsutil::open_fda_settings();
-                                }
-                            });
                     }
                 });
             });

@@ -46,8 +46,20 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-# Ad-hoc signature (required to run on Apple Silicon)
-codesign --force --deep --sign - "$APP"
+# Sign. With a stable local certificate (scripts/setup-signing.sh) macOS keeps
+# Full Disk Access across rebuilds; otherwise fall back to an ad-hoc signature,
+# which macOS treats as a brand-new app after every build.
+SIGN_ID="-"
+if [[ "${ADHOC:-0}" != "1" ]] && security find-identity -p codesigning 2>/dev/null | grep -q "MacSweep Local Signing"; then
+    SIGN_ID="MacSweep Local Signing"
+fi
+codesign --force --deep --sign "$SIGN_ID" "$APP"
+if [[ "$SIGN_ID" == "-" ]]; then
+    echo "Note: ad-hoc signed. After installing this build, re-add MacSweep in Full Disk Access"
+    echo "      (or run scripts/setup-signing.sh once so you never have to again)."
+else
+    echo "Signed with '$SIGN_ID' — Full Disk Access carries over."
+fi
 echo "Built $APP v${VERSION} ($(du -sh "$APP" | cut -f1))"
 
 if [[ "${ZIP:-0}" == "1" ]]; then

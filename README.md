@@ -59,7 +59,21 @@ git clone https://github.com/nihal4/macsweep && cd macsweep
 UNIVERSAL=1 ./bundle.sh     # Apple Silicon + Intel in one app
 ```
 
-Each rebuild changes the ad-hoc signature, so you may need to switch Full Disk Access off and on again.
+### Keep Full Disk Access across rebuilds
+
+macOS ties Full Disk Access to the app's signature. The default ad-hoc signature changes with every build, so after a rebuild macOS treats MacSweep as a new app: the switch still looks on in System Settings, but access is gone. To fix this for good, run once:
+
+```bash
+./scripts/setup-signing.sh   # creates a local "MacSweep Local Signing" certificate (asks for your password)
+./bundle.sh                  # now signs with it automatically
+```
+
+Then grant Full Disk Access one last time and relaunch. Future builds keep it.
+
+**Full Disk Access still shows as off?**
+1. In System Settings → Full Disk Access, select MacSweep, click **–** to remove it, then **+** to add `/Applications/MacSweep.app` again.
+2. Quit MacSweep and reopen it (or click **Relaunch** in the sidebar). macOS only applies the permission to a freshly started app.
+3. Open the app from Applications, not by running the binary in Terminal. From Terminal, the permission belongs to Terminal instead.
 
 ## Safety — your data is never touched
 
