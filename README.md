@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/icon.png" width="128" alt="MacSweep icon">
+
 # MacSweep
 
 **A fast, lightweight Mac cleaner written in Rust.**
@@ -59,12 +61,17 @@ UNIVERSAL=1 ./bundle.sh     # Apple Silicon + Intel in one app
 
 Each rebuild changes the ad-hoc signature, so you may need to switch Full Disk Access off and on again.
 
-## Safety
+## Safety — your data is never touched
 
-- Junk cleaning only deletes the *contents* of known cache, log and build folders, and refuses any path outside your home folder.
-- Apps whose bundle ID starts with `com.apple.` never appear in the uninstaller.
-- Uninstalled apps, large files and launch agents go to the **Trash**, so you can undo. Only junk is deleted permanently, after you confirm.
-- Leftover matching is conservative (bundle ID or exact app name), and you can untick anything before removing it.
+Some cleaners have wiped browser profiles and email. MacSweep is built so that **can't happen**:
+
+- **Allowlist, not blocklist.** Junk cleaning can only delete *inside* a fixed list of cache, log and build folders (`JUNK_ROOTS` in `src/fsutil.rs`). Every path is checked again right before deletion.
+- **Never touched by cleaning:** browser profiles (Chrome, Brave, Firefox, Safari: history, passwords, bookmarks, logins), Mail, Messages, Keychains, cookies, app containers, `~/Library/Application Support`, and your documents. For browsers, only the disposable download cache in `~/Library/Caches` is cleaned.
+- **Sign-in and sync caches are skipped:** iCloud, CloudKit, Apple ID, Wallet, Family, and anything named like a keychain, password manager, token, auth, account or login.
+- **The Uninstaller keeps your data unless you ask.** Support files are split into *safe to remove* (cache, logs, preferences, saved window state) and **Your data** (Application Support, containers, cookies, web storage). Your data is never pre-selected.
+- **Recoverable by default.** Uninstalled apps, large files and launch agents go to the Trash ("Put Back" works). Only junk is deleted permanently, after you click Clean.
+- Apple's own apps (`com.apple.*`) never appear in the Uninstaller.
+- Unit tests (`cargo test`) check that browser profiles, Mail, keychains, cookies, Documents and `../` path tricks are never deletable.
 
 ## Releasing
 

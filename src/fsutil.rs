@@ -129,12 +129,83 @@ pub fn open(target: &str) {
     let _ = Command::new("open").arg(target).spawn();
 }
 
-/// Permanently deletes items — refuses anything outside the home folder.
-pub fn delete_permanently(items: &[(PathBuf, u64)]) -> (u64, usize) {
+// ---------- safety ----------
+
+/// The ONLY folders (relative to ~) whose contents junk cleaning may delete.
+/// Browser profiles (~/Library/Application Support/...), Mail (~/Library/Mail),
+/// app containers, keychains, cookies, documents etc. are never in this list,
+/// so they can never be deleted by a clean.
+pub const JUNK_ROOTS: &[&str] = &[
+    "Library/Caches",
+    "Library/Logs",
+    "Library/Developer/Xcode/DerivedData",
+    "Library/Developer/Xcode/iOS DeviceSupport",
+    "Library/Developer/CoreSimulator/Caches",
+    ".npm/_cacache",
+    ".gradle/caches",
+    ".cache/huggingface",
+    ".cache/torch",
+    "Library/Containers/com.apple.mail/Data/Library/Mail Downloads",
+    ".Trash",
+];
+
+/// Cache folders that hold sign-in, iCloud or sync state rather than
+/// throw-away data. Deleting them can sign you out or break syncing.
+const PROTECTED_NAMES: &[&str] = &[
+    "cloudkit",
+    "com.apple.akd",
+    "com.apple.bird",
+    "com.apple.clouddocs",
+    "com.apple.cloudd",
+    "com.apple.icloudhelper",
+    "com.apple.homed",
+    "com.apple.passd",
+    "com.apple.nsurlsessiond",
+    "com.apple.containermanagerd",
+    "familycircle",
+];
+
+/// Anything whose name suggests credentials or account data is skipped.
+const PROTECTED_WORDS: &[&str] = &[
+    "keychain",
+    "password",
+    "1password",
+    "bitwarden",
+    "lastpass",
+    "dashlane",
+    "credential",
+    "token",
+    "auth",
+    "account",
+    "login",
+];
+
+/// True if a junk item must never be shown or deleted.
+pub fn is_protected(p: &Path) -> bool {
+    let n = p.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
+    PROTECTED_NAMES.contains(&n.as_str()) || PROTECTED_WORDS.iter().any(|w| n.contains(w))
+}
+
+/// Final gate before any permanent delete: the item must sit *inside* one of
+/// the JUNK_ROOTS (never the root itself) and must not be protected.
+pub fn deletable(p: &Path) -> bool {
     let h = home();
+    if h.as_os_str().is_empty() || p.components().any(|c| c == std::path::Component::ParentDir) {
+        return false;
+    }
+    JUNK_ROOTS.iter().any(|r| {
+        let root = h.join(r);
+        let inside = p.starts_with(&root) && p != root;
+        // Things in the Trash were already thrown away by you, so names don't matter there.
+        inside && (*r == ".Trash" || !is_protected(p))
+    })
+}
+
+/// Permanently deletes junk items — refuses anything that isn't `deletable`.
+pub fn delete_permanently(items: &[(PathBuf, u64)]) -> (u64, usize) {
     let (mut freed, mut failed) = (0u64, 0usize);
     for (p, size) in items {
-        if h.as_os_str().is_empty() || !p.starts_with(&h) || p == &h {
+        if !deletable(p) {
             failed += 1;
             continue;
         }
@@ -200,4 +271,57 @@ pub fn has_full_disk_access() -> bool {
 
 pub fn open_fda_settings() {
     open("x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn browser_profiles_and_mail_are_never_deletable() {
+        let h = home();
+        for p in [
+            "Library/Application Support/Google/Chrome/Default",
+            "Library/Application Support/BraveSoftware/Brave-Browser/Default",
+            "Library/Application Support/Firefox/Profiles",
+            "Library/Mail/V10",
+            "Library/Keychains/login.keychain-db",
+            "Library/Cookies/Cookies.binarycookies",
+            "Library/Containers/com.apple.Safari",
+            "Library/Safari/History.db",
+            "Documents/thesis.docx",
+            "Library/Caches/../Application Support/Google",
+        ] {
+            assert!(!deletable(&h.join(p)), "{p} must be protected");
+        }
+    }
+
+    #[test]
+    fn roots_themselves_are_not_deletable() {
+        for r in JUNK_ROOTS {
+            assert!(!deletable(&home().join(r)), "{r}");
+        }
+    }
+
+    #[test]
+    fn ordinary_cache_items_are_deletable() {
+        let h = home();
+        assert!(deletable(&h.join("Library/Caches/com.google.Chrome")));
+        assert!(deletable(&h.join("Library/Caches/Homebrew")));
+        assert!(deletable(&h.join(".Trash/old.dmg")));
+        assert!(deletable(&h.join(".Trash/passwords-backup.txt")));
+    }
+
+    #[test]
+    fn sign_in_caches_are_protected() {
+        let h = home();
+        for p in [
+            "Library/Caches/CloudKit",
+            "Library/Caches/com.apple.akd",
+            "Library/Caches/com.1password.1password",
+            "Library/Caches/com.app.AuthService",
+        ] {
+            assert!(!deletable(&h.join(p)), "{p}");
+        }
+    }
 }

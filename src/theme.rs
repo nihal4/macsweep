@@ -73,9 +73,11 @@ pub const AGENTS: Palette = Palette {
 pub const DANGER: Color32 = Color32::from_rgb(0xff, 0x5f, 0x6d);
 pub const WARN: Color32 = Color32::from_rgb(0xff, 0xb3, 0x40);
 
+/// Blends two colours, transparency included (Color32 is premultiplied, so a
+/// per-channel blend is exact).
 pub fn lerp(a: Color32, b: Color32, t: f32) -> Color32 {
     let f = |x: u8, y: u8| (x as f32 + (y as f32 - x as f32) * t).round() as u8;
-    Color32::from_rgb(f(a.r(), b.r()), f(a.g(), b.g()), f(a.b(), b.b()))
+    Color32::from_rgba_premultiplied(f(a.r(), b.r()), f(a.g(), b.g()), f(a.b(), b.b()), f(a.a(), b.a()))
 }
 
 pub fn lerp_palette(a: Palette, b: Palette, t: f32) -> Palette {
@@ -414,6 +416,28 @@ pub fn usage_bar(ui: &mut Ui, frac: f32, color: Color32, height: f32) {
     let mut fill = rect;
     fill.set_width(rect.width() * frac.clamp(0.0, 1.0));
     painter.rect_filled(fill, height / 2.0, color);
+}
+
+/// A clickable list row. The row's own click area is registered *first*, so
+/// checkboxes and links placed inside it still receive their clicks.
+pub fn row(ui: &mut Ui, height: f32, selected: bool, add: impl FnOnce(&mut Ui)) -> Response {
+    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::click());
+    let fill = if selected {
+        Color32::from_white_alpha(42)
+    } else if resp.hovered() {
+        Color32::from_white_alpha(24)
+    } else {
+        Color32::from_white_alpha(12)
+    };
+    ui.painter().rect_filled(rect, 12, fill);
+    let inner = rect.shrink2(vec2(10.0, 0.0));
+    ui.scope_builder(
+        egui::UiBuilder::new()
+            .max_rect(inner)
+            .layout(egui::Layout::left_to_right(egui::Align::Center)),
+        add,
+    );
+    resp
 }
 
 /// Centered column helper.

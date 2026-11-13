@@ -340,29 +340,18 @@ impl Large {
             .show(ui, |ui| {
                 let mut entry =
                     |ui: &mut Ui, k: Option<Kind>, label: &str, glyph: &str, color: Color32, size: u64, count: usize| {
-                        let fill = if self.filter == k {
-                            Color32::from_white_alpha(40)
-                        } else {
-                            Color32::from_white_alpha(12)
-                        };
-                        let r = egui::Frame::new()
-                            .fill(fill)
-                            .corner_radius(12)
-                            .inner_margin(8)
-                            .show(ui, |ui| {
-                                ui.set_width(ui.available_width());
-                                ui.horizontal(|ui| {
-                                    theme::icon_tile(ui, glyph, color, 28.0);
-                                    ui.vertical(|ui| {
-                                        ui.label(theme::semi(label, 13.0));
-                                        ui.label(theme::dim(format!("{count} files"), 11.0));
-                                    });
-                                    ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
-                                        ui.label(theme::semi(fmt_size(size), 12.5))
-                                    });
-                                });
+                        let r = theme::row(ui, 50.0, self.filter == k, |ui| {
+                            theme::icon_tile(ui, glyph, color, 28.0);
+                            ui.vertical(|ui| {
+                                ui.add_space(7.0);
+                                ui.label(theme::semi(label, 13.0));
+                                ui.label(theme::dim(format!("{count} files"), 11.0));
                             });
-                        if r.response.interact(egui::Sense::click()).clicked() {
+                            ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
+                                ui.label(theme::semi(fmt_size(size), 12.5))
+                            });
+                        });
+                        if r.clicked() {
                             self.filter = k;
                         }
                         ui.add_space(2.0);

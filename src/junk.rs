@@ -177,6 +177,7 @@ impl Junk {
                         .iter()
                         .flat_map(|r| fsutil::children(&home.join(r)))
                         .filter(|p| p.file_name().is_some_and(|n| n != ".DS_Store"))
+                        .filter(|p| fsutil::deletable(p))
                         .collect::<Vec<_>>()
                         .into_par_iter()
                         .map(|p| {
@@ -279,6 +280,16 @@ impl Junk {
             ui.vertical(|ui| {
                 ui.label(theme::bold(fmt_size(self.total_found()), 28.0));
                 ui.label(theme::dim("of junk found on your Mac", 13.5));
+                ui.label(
+                    theme::dim(
+                        format!(
+                            "{}  Browser profiles, passwords, email and app data are never touched",
+                            icon::LOCK_SIMPLE
+                        ),
+                        12.0,
+                    )
+                    .color(Color32::from_rgb(0xb8, 0xf5, 0xd8)),
+                );
             });
             ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
                 if theme::pill(
@@ -312,40 +323,29 @@ impl Junk {
             .show(ui, |ui| {
                 egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
                     for (i, c) in self.cats.iter_mut().enumerate() {
-                        let fill = if self.focus == i {
-                            Color32::from_white_alpha(40)
-                        } else {
-                            Color32::from_white_alpha(14)
-                        };
-                        let resp = egui::Frame::new()
-                            .fill(fill)
-                            .corner_radius(14)
-                            .inner_margin(10)
-                            .show(ui, |ui| {
-                                ui.set_width(ui.available_width());
-                                ui.horizontal(|ui| {
-                                    let state = c.all_selected();
-                                    let mut on = state.unwrap_or(true);
-                                    let cb = egui::Checkbox::new(&mut on, "").indeterminate(state.is_none());
-                                    if ui.add_enabled(!c.items.is_empty(), cb).changed() {
-                                        c.items.iter_mut().for_each(|it| it.selected = on);
-                                    }
-                                    theme::icon_tile(ui, c.glyph, c.color, 34.0);
-                                    ui.vertical(|ui| {
-                                        ui.label(theme::semi(c.name, 14.0));
-                                        let sub = if c.items.is_empty() {
-                                            "Nothing to clean".to_string()
-                                        } else {
-                                            format!("{} items", c.items.len())
-                                        };
-                                        ui.label(theme::dim(sub, 11.5));
-                                    });
-                                    ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
-                                        ui.label(theme::semi(fmt_size(c.total()), 13.5));
-                                    });
-                                });
+                        let resp = theme::row(ui, 58.0, self.focus == i, |ui| {
+                            let state = c.all_selected();
+                            let mut on = state.unwrap_or(true);
+                            let cb = egui::Checkbox::new(&mut on, "").indeterminate(state.is_none());
+                            if ui.add_enabled(!c.items.is_empty(), cb).changed() {
+                                c.items.iter_mut().for_each(|it| it.selected = on);
+                            }
+                            theme::icon_tile(ui, c.glyph, c.color, 34.0);
+                            ui.vertical(|ui| {
+                                ui.add_space(9.0);
+                                ui.label(theme::semi(c.name, 14.0));
+                                let sub = if c.items.is_empty() {
+                                    "Nothing to clean".to_string()
+                                } else {
+                                    format!("{} items", c.items.len())
+                                };
+                                ui.label(theme::dim(sub, 11.5));
                             });
-                        if resp.response.interact(egui::Sense::click()).clicked() {
+                            ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
+                                ui.label(theme::semi(fmt_size(c.total()), 13.5));
+                            });
+                        });
+                        if resp.clicked() {
                             self.focus = i;
                         }
                         ui.add_space(2.0);
@@ -435,4 +435,16 @@ pub fn done_screen(ui: &mut Ui, p: Palette, title: &str, sub: &str) -> bool {
         clicked = theme::round_button(ui, "Done", p, true).clicked();
     });
     clicked
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn every_category_stays_inside_the_allowlist() {
+        for c in super::Junk::default().cats {
+            for r in c.roots {
+                assert!(crate::fsutil::JUNK_ROOTS.contains(r), "{r} is not in JUNK_ROOTS");
+            }
+        }
+    }
 }

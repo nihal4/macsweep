@@ -25,6 +25,8 @@ struct Leftover {
     path: PathBuf,
     size: u64,
     kind: &'static str,
+    /// Profiles, accounts, saved documents, logins… kept unless the user ticks it.
+    user_data: bool,
     selected: bool,
 }
 
@@ -120,31 +122,34 @@ fn detect_arch(app: &Path, exe: Option<&str>) -> Arch {
     }
 }
 
-const LIB_DIRS: [(&str, &str); 13] = [
-    ("Application Support", "App Support"),
-    ("Caches", "Cache"),
-    ("Preferences", "Preferences"),
-    ("Preferences/ByHost", "Preferences"),
-    ("Containers", "Container"),
-    ("Group Containers", "Group Container"),
-    ("Saved Application State", "Saved State"),
-    ("Logs", "Logs"),
-    ("HTTPStorages", "Web Data"),
-    ("WebKit", "Web Data"),
-    ("Cookies", "Cookies"),
-    ("LaunchAgents", "Launch Agent"),
-    ("Application Scripts", "Scripts"),
+/// (folder in ~/Library, label, holds user data?)
+/// User-data folders (browser profiles, mailboxes, logins, saved content)
+/// are never pre-selected: removing them is always the user's explicit choice.
+const LIB_DIRS: [(&str, &str, bool); 13] = [
+    ("Application Support", "App Support", true),
+    ("Caches", "Cache", false),
+    ("Preferences", "Preferences", false),
+    ("Preferences/ByHost", "Preferences", false),
+    ("Containers", "Container", true),
+    ("Group Containers", "Group Container", true),
+    ("Saved Application State", "Saved State", false),
+    ("Logs", "Logs", false),
+    ("HTTPStorages", "Web Data", true),
+    ("WebKit", "Web Data", true),
+    ("Cookies", "Cookies", true),
+    ("LaunchAgents", "Launch Agent", false),
+    ("Application Scripts", "Scripts", false),
 ];
 
 /// One listing of ~/Library, shared by every app's leftover search.
-fn library_index() -> Vec<(PathBuf, String, &'static str)> {
+fn library_index() -> Vec<(PathBuf, String, &'static str, bool)> {
     let lib = fsutil::home().join("Library");
     LIB_DIRS
         .iter()
-        .flat_map(|(dir, label)| {
+        .flat_map(|(dir, label, data)| {
             fsutil::children(&lib.join(dir)).into_iter().map(move |p| {
                 let n = p.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
-                (p, n, *label)
+                (p, n, *label, *data)
             })
         })
         .collect()
@@ -188,18 +193,19 @@ fn find_apps() -> Vec<AppInfo> {
             let bid = bundle_id.as_ref().map(|b| b.to_lowercase());
             let leftovers: Vec<Leftover> = index
                 .iter()
-                .filter(|(_, n, _)| {
+                .filter(|(_, n, _, _)| {
                     let stem = Path::new(n)
                         .file_stem()
                         .map(|s| s.to_string_lossy().into_owned())
                         .unwrap_or_default();
                     names.iter().any(|x| x == n || *x == stem) || bid.as_ref().is_some_and(|b| n.contains(b.as_str()))
                 })
-                .map(|(p, _, kind)| Leftover {
+                .map(|(p, _, kind, data)| Leftover {
                     path: p.clone(),
                     size: fsutil::size_of(p),
                     kind,
-                    selected: true,
+                    user_data: *data,
+                    selected: !*data,
                 })
                 .collect();
 
@@ -546,45 +552,30 @@ impl Uninstaller {
             .exact_size(400.0)
             .frame(egui::Frame::new())
             .show(ui, |ui| {
-                let row_h = 54.0;
+                let row_h = 50.0;
                 egui::ScrollArea::vertical()
                     .auto_shrink(false)
                     .show_rows(ui, row_h, order.len(), |ui, range| {
                         for &i in &order[range] {
                             let focused = self.focus.as_ref() == Some(&self.apps[i].path);
-                            let fill = if focused {
-                                Color32::from_white_alpha(40)
-                            } else if self.apps[i].checked {
-                                Color32::from_white_alpha(22)
-                            } else {
-                                Color32::TRANSPARENT
-                            };
-                            let resp = egui::Frame::new()
-                                .fill(fill)
-                                .corner_radius(12)
-                                .inner_margin(egui::Margin::symmetric(8, 5))
-                                .show(ui, |ui| {
-                                    ui.set_width(ui.available_width());
-                                    ui.horizontal(|ui| {
-                                        ui.checkbox(&mut self.apps[i].checked, "");
-                                        let app = self.apps[i].clone();
-                                        self.app_icon(ui, &app, 38.0);
-                                        ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
-                                            ui.label(theme::semi(fmt_size(app.total()), 13.5));
-                                            if app.arch == Arch::Intel {
-                                                ui.label(theme::ic(icon::WARNING, 14.0).color(theme::WARN))
-                                                    .on_hover_text("Intel-only app (runs through Rosetta)");
-                                            }
-                                            ui.with_layout(Layout::top_down(egui::Align::Min), |ui| {
-                                                ui.add_space(2.0);
-                                                ui.add(egui::Label::new(theme::semi(&app.name, 14.0)).truncate());
-                                                ui.label(theme::dim(app.version.clone().unwrap_or_default(), 11.5));
-                                            });
-                                        });
+                            let resp = theme::row(ui, row_h, focused || self.apps[i].checked, |ui| {
+                                ui.checkbox(&mut self.apps[i].checked, "");
+                                let app = self.apps[i].clone();
+                                self.app_icon(ui, &app, 38.0);
+                                ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
+                                    ui.label(theme::semi(fmt_size(app.total()), 13.5));
+                                    if app.arch == Arch::Intel {
+                                        ui.label(theme::ic(icon::WARNING, 14.0).color(theme::WARN))
+                                            .on_hover_text("Intel-only app (runs through Rosetta)");
+                                    }
+                                    ui.with_layout(Layout::top_down(egui::Align::Min), |ui| {
+                                        ui.add_space(8.0);
+                                        ui.add(egui::Label::new(theme::semi(&app.name, 14.0)).truncate());
+                                        ui.label(theme::dim(app.version.clone().unwrap_or_default(), 11.5));
                                     });
                                 });
-                            let click = resp.response.interact(egui::Sense::click());
-                            if click.clicked() {
+                            });
+                            if resp.clicked() {
                                 let path = self.apps[i].path.clone();
                                 if !self.last_opened.contains_key(&path) && self.opened_job.is_none() {
                                     let p2 = path.clone();
@@ -691,6 +682,18 @@ impl Uninstaller {
             });
             ui.separator();
             ui.label(theme::semi(format!("Related files ({})", app.leftovers.len()), 14.0));
+            if app.leftovers.iter().any(|l| l.user_data) {
+                ui.label(
+                    theme::dim(
+                        format!(
+                            "{}  Items marked \"Your data\" (profiles, accounts, logins, saved content) are kept unless you tick them.",
+                            icon::LOCK_SIMPLE
+                        ),
+                        12.0,
+                    )
+                    .color(Color32::from_rgb(0xc8, 0xe0, 0xff)),
+                );
+            }
             if app.leftovers.is_empty() {
                 ui.label(theme::dim("No support files found in ~/Library.", 12.5));
                 return;
@@ -700,6 +703,9 @@ impl Uninstaller {
                     ui.horizontal(|ui| {
                         ui.checkbox(&mut l.selected, "");
                         ui.add_sized([96.0, 18.0], egui::Label::new(theme::dim(l.kind, 11.5)));
+                        if l.user_data {
+                            theme::badge(ui, "Your data", theme::WARN);
+                        }
                         ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
                             ui.add_space(6.0);
                             ui.label(theme::dim(fmt_size(l.size), 12.5));
