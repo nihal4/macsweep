@@ -2,6 +2,10 @@
 name = "macsweep"
 version = "0.1.0"
 edition = "2024"
+description = "A fast, lightweight, open-source Mac cleaner"
+license = "MIT"
+repository = "https://github.com/nihal4/macsweep"
+authors = ["S. M. Nihal Ahmed"]
 
 [dependencies]
 eframe = { version = "0.37.0", default-features = false, features = ["glow", "default_fonts"] }

@@ -4,25 +4,40 @@
 
 # MacSweep
 
-**A fast, lightweight Mac cleaner written in Rust.**
-Clean junk, find big forgotten files, fully uninstall apps and remove orphaned background items, in a native app of about 7 MB.
+**A free, open-source Mac cleaner written in Rust.**
+Clean junk, find big forgotten files, fully uninstall apps and remove orphaned background items, all from a ~7 MB native app.
+
+[![Latest release](https://img.shields.io/github/v/release/nihal4/macsweep?label=download&color=c04fd0)](https://github.com/nihal4/macsweep/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+![macOS 11+](https://img.shields.io/badge/macOS-11%2B-black?logo=apple)
+![Apple Silicon & Intel](https://img.shields.io/badge/Apple%20Silicon%20%26%20Intel-universal-555)
+![Rust](https://img.shields.io/badge/built%20with-Rust-orange?logo=rust)
 
 ![Smart Scan](docs/smart-scan-results.jpg)
 
-[**Download the latest release**](https://github.com/nihal4/macsweep/releases/latest) · Apple Silicon & Intel · macOS 11+
+[**⬇ Download MacSweep**](https://github.com/nihal4/macsweep/releases/latest) · [Report a bug](https://github.com/nihal4/macsweep/issues/new?template=bug_report.md) · [Request a feature](https://github.com/nihal4/macsweep/issues/new?template=feature_request.md)
 
 </div>
+
+---
+
+## Why MacSweep?
+
+- **Free and open source.** No subscription, no ads, no "upgrade to clean" paywall. Every line is right here.
+- **Safe by design.** It never touches your browser profiles, email, passwords or app data (see [Safety](#safety--your-data-is-never-touched)).
+- **Tiny and fast.** One native Rust binary of about 7 MB. Scans use every CPU core, and the app uses no CPU when idle.
+- **Private.** No accounts, no telemetry, no network access. Everything happens on your Mac.
 
 ## Features
 
 | | |
 |---|---|
-| **Smart Scan** | One click finds caches, logs, build leftovers and Trash, and shows a summary by category. |
-| **System Junk** | Review every category and file before cleaning, with per-file checkboxes. Developer and ML-model caches are included (ML caches are off by default). |
-| **Large & Old Files** | Scans your home folder for big files, grouped by kind (videos, archives, installers, models & data…), with a "not opened in a year" filter. |
-| **Uninstaller** | Every app with its icon, version, App Store / Apple Silicon / Intel badges, last-opened date and **true size including leftovers**. Quits the app, then removes it and its support files. Select several at once. |
-| **Launch Agents** | Lists background helpers and flags **orphaned** ones whose app is already gone. |
-| **Live disk & Trash** | The sidebar always shows free space and Trash size, updates right after every clean, and has a one-click **Empty Trash**. |
+| ✨ **Smart Scan** | One click finds caches, logs, build leftovers and Trash, and shows a summary by category. |
+| 🧹 **System Junk** | Review every category and file before cleaning, with per-file checkboxes. Developer (Xcode, npm, Gradle) and ML-model caches (Hugging Face, PyTorch) are included. |
+| 📁 **Large & Old Files** | Finds big files in your home folder, grouped by kind (videos, archives, installers, models & data…), with a "not opened in a year" filter. |
+| 📦 **Uninstaller** | Every app with its icon, version, App Store / Apple Silicon / Intel badges, last-opened date and **true size including leftovers**. Select several apps at once. |
+| 🚀 **Launch Agents** | Lists background helpers and flags **orphaned** ones whose app is already gone. |
+| 💾 **Live disk & Trash** | The sidebar always shows free space and Trash size, updates instantly after every clean, and has a one-click **Empty Trash**. |
 
 <table>
 <tr>
@@ -35,82 +50,72 @@ Clean junk, find big forgotten files, fully uninstall apps and remove orphaned b
 </tr>
 </table>
 
-## Why Rust
-
-- **Fast:** scans use every CPU core (`jwalk` + `rayon`) and run off the UI thread, so the window never freezes.
-- **Light:** one native binary drawn with [egui](https://github.com/emilk/egui) and OpenGL, with no browser engine inside. The UI only redraws when something changes, and the system font is memory-mapped instead of copied into RAM.
-
 ## Install
 
-1. Download `MacSweep-x.y.z.zip` from [Releases](https://github.com/nihal4/macsweep/releases/latest), unzip it, and move **MacSweep** to Applications.
-2. The app isn't notarized by Apple yet, so the first time, right-click it → **Open** → **Open**. Or run:
+1. Download **`MacSweep-x.y.z.zip`** from [Releases](https://github.com/nihal4/macsweep/releases/latest), unzip it, and move **MacSweep** to **Applications**.
+2. MacSweep isn't notarized by Apple yet (that needs a paid developer account), so the first time, right-click the app → **Open** → **Open**. Or run:
    ```bash
    xattr -dr com.apple.quarantine /Applications/MacSweep.app
    ```
-3. Turn on **System Settings → Privacy & Security → Full Disk Access** for MacSweep, then reopen it. Without this, the Trash and Mail can't be scanned.
-4. The first time you remove something, allow MacSweep to control **Finder**. It uses Finder to move files to the Trash, so "Put Back" works.
+3. Turn on **System Settings → Privacy & Security → Full Disk Access** for MacSweep, then reopen it (or click **Relaunch** in the sidebar).
+4. The first time you remove something, allow MacSweep to control **Finder**. It uses Finder to move files to the Trash, so **Put Back** works.
+
+<details>
+<summary><b>Full Disk Access still shows as off?</b></summary>
+
+1. In System Settings → Full Disk Access, select MacSweep, click **–** to remove it, then **+** to add `/Applications/MacSweep.app` again.
+2. Quit and reopen MacSweep. macOS only applies the permission to a freshly started app.
+3. Open the app from Applications, not by running the binary in Terminal. From Terminal, the permission belongs to Terminal instead.
+</details>
+
+## Safety — your data is never touched
+
+Some cleaners have wiped people's browser profiles and email. MacSweep is built so that **can't happen**:
+
+- **Allowlist, not blocklist.** Junk cleaning can only delete *inside* a fixed list of cache, log and build folders (`JUNK_ROOTS` in [`src/fsutil.rs`](src/fsutil.rs)). Every path is checked again right before deletion.
+- **Never touched:** browser profiles (Chrome, Brave, Firefox, Safari: history, passwords, bookmarks, logins), Mail, Messages, Keychains, cookies, app containers, `~/Library/Application Support`, and your documents. For browsers, only the disposable download cache is cleaned.
+- **Sign-in and sync caches are skipped:** iCloud, CloudKit, Apple ID, Wallet, Family, and anything named like a password manager, token, auth, account or login.
+- **The Uninstaller keeps your data unless you ask.** Leftovers are split into *safe to remove* (cache, logs, preferences, window state) and **Your data** (profiles, containers, cookies, web storage), which is never pre-selected.
+- **Recoverable by default.** Apps, large files and launch agents go to the Trash. Only junk is deleted permanently, after you click Clean.
+- Apple's own apps are never listed in the Uninstaller.
+- Automated tests (`cargo test`) check that browser profiles, Mail, keychains, cookies, Documents and `../` path tricks can never be deleted.
 
 ## Build from source
 
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh   # one-time Rust install
 git clone https://github.com/nihal4/macsweep && cd macsweep
+./scripts/setup-signing.sh  # optional, once: keeps Full Disk Access across rebuilds
 ./bundle.sh                 # dist/MacSweep.app for this Mac
 UNIVERSAL=1 ./bundle.sh     # Apple Silicon + Intel in one app
 ```
 
-### Keep Full Disk Access across rebuilds
+## Roadmap
 
-macOS ties Full Disk Access to the app's signature. The default ad-hoc signature changes with every build, so after a rebuild macOS treats MacSweep as a new app: the switch still looks on in System Settings, but access is gone. To fix this for good, run once:
+- [ ] Duplicate file finder
+- [ ] Menu-bar mini monitor (disk, RAM, CPU)
+- [ ] Browser cache cleanup per browser (cache only, never profiles)
+- [ ] Scheduled scans and reminders
+- [ ] Homebrew install (`brew install --cask macsweep`)
+- [ ] Notarized builds
 
-```bash
-./scripts/setup-signing.sh   # creates a local "MacSweep Local Signing" certificate (asks for your password)
-./bundle.sh                  # now signs with it automatically
-```
+Ideas are welcome: [open a feature request](https://github.com/nihal4/macsweep/issues/new?template=feature_request.md).
 
-Then grant Full Disk Access one last time and relaunch. Future builds keep it.
+## Contributing
 
-**Full Disk Access still shows as off?**
-1. In System Settings → Full Disk Access, select MacSweep, click **–** to remove it, then **+** to add `/Applications/MacSweep.app` again.
-2. Quit MacSweep and reopen it (or click **Relaunch** in the sidebar). macOS only applies the permission to a freshly started app.
-3. Open the app from Applications, not by running the binary in Terminal. From Terminal, the permission belongs to Terminal instead.
+Pull requests are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md). The one hard rule: **never widen what can be deleted without a test that proves user data stays safe.**
 
-## Safety — your data is never touched
+## How it's built
 
-Some cleaners have wiped browser profiles and email. MacSweep is built so that **can't happen**:
+- [Rust](https://www.rust-lang.org) with [egui](https://github.com/emilk/egui) (OpenGL), with no web view inside
+- [`jwalk`](https://crates.io/crates/jwalk) + [`rayon`](https://crates.io/crates/rayon) for parallel scanning
+- [`trash`](https://crates.io/crates/trash) for Finder-compatible Trash, [`icns`](https://crates.io/crates/icns) for app icons, [`plist`](https://crates.io/crates/plist) for app metadata
+- San Francisco (the system font) is memory-mapped instead of bundled
 
-- **Allowlist, not blocklist.** Junk cleaning can only delete *inside* a fixed list of cache, log and build folders (`JUNK_ROOTS` in `src/fsutil.rs`). Every path is checked again right before deletion.
-- **Never touched by cleaning:** browser profiles (Chrome, Brave, Firefox, Safari: history, passwords, bookmarks, logins), Mail, Messages, Keychains, cookies, app containers, `~/Library/Application Support`, and your documents. For browsers, only the disposable download cache in `~/Library/Caches` is cleaned.
-- **Sign-in and sync caches are skipped:** iCloud, CloudKit, Apple ID, Wallet, Family, and anything named like a keychain, password manager, token, auth, account or login.
-- **The Uninstaller keeps your data unless you ask.** Support files are split into *safe to remove* (cache, logs, preferences, saved window state) and **Your data** (Application Support, containers, cookies, web storage). Your data is never pre-selected.
-- **Recoverable by default.** Uninstalled apps, large files and launch agents go to the Trash ("Put Back" works). Only junk is deleted permanently, after you click Clean.
-- Apple's own apps (`com.apple.*`) never appear in the Uninstaller.
-- Unit tests (`cargo test`) check that browser profiles, Mail, keychains, cookies, Documents and `../` path tricks are never deletable.
+Releases are built by GitHub Actions: push a tag such as `v0.2.0` and a universal `.app` is attached to a new release.
 
-## Releasing
+## License
 
-Bump `version` in `Cargo.toml`, then:
+[MIT](LICENSE) © S. M. Nihal Ahmed. Icons by [Phosphor](https://phosphoricons.com) (MIT).
 
-```bash
-git tag v0.1.0 && git push origin v0.1.0
-```
-
-GitHub Actions builds a universal `.app` and attaches the zip to a new release (see `.github/workflows/release.yml`).
-
-## Project layout
-
-```
-src/main.rs        window, sidebar, Smart Scan, live disk/Trash
-src/theme.rs       fonts, colours, gradients, round buttons, cards
-src/job.rs         background jobs with progress & cancel
-src/fsutil.rs      sizes, delete/trash, disk info, permissions
-src/junk.rs        System Junk
-src/large.rs       Large & Old Files
-src/uninstall.rs   Uninstaller (icons, arch detection, leftovers)
-src/agents.rs      Launch Agents
-```
-
-## Credits
-
-Icons: [Phosphor](https://phosphoricons.com) (MIT, see `assets/PHOSPHOR-LICENSE`).
-Screenshots were taken on a test machine with sample data; on macOS the app uses the system San Francisco font.
+If MacSweep saved you some space, please **⭐ star the repo**. It helps other people find it.
