@@ -3,7 +3,20 @@ use std::fs;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::SystemTime;
+
+/// Bumped every time we delete or trash something, so the UI knows to
+/// refresh disk-space and Trash numbers right away.
+pub static CHANGES: AtomicU64 = AtomicU64::new(0);
+
+pub fn changes() -> u64 {
+    CHANGES.load(Ordering::Relaxed)
+}
+
+fn bump() {
+    CHANGES.fetch_add(1, Ordering::Relaxed);
+}
 
 pub fn home() -> PathBuf {
     PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
@@ -25,11 +38,42 @@ pub fn children(p: &Path) -> Vec<PathBuf> {
 }
 
 /// Real on-disk size (allocated blocks), like Finder's "on disk".
+/// Files that macOS stores compressed (common inside app bundles) report
+/// 0 blocks, so fall back to their logical size instead of showing 0.
 pub fn allocated(md: &fs::Metadata) -> u64 {
-    md.blocks() * 512
+    let blocks = md.blocks() * 512;
+    if blocks == 0 { md.len() } else { blocks }
 }
 
-/// Size of a file or a whole folder tree, walked in parallel.
+/// Size of an app bundle. Resolves symlinked apps and, if the fast walk
+/// still finds nothing, asks `du` as a last resort.
+pub fn app_size(p: &Path) -> u64 {
+    let real = fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+    let s = size_of(&real);
+    if s > 0 {
+        return s;
+    }
+    Command::new("du")
+        .arg("-sk")
+        .arg(&real)
+        .output()
+        .ok()
+        .and_then(|o| {
+            String::from_utf8_lossy(&o.stdout)
+                .split_whitespace()
+                .next()?
+                .parse::<u64>()
+                .ok()
+        })
+        .map(|kb| kb * 1024)
+        .unwrap_or(0)
+}
+
+/// Size of a file or a whole folder tree.
+///
+/// The walk is serial on purpose: callers already run many of these in
+/// parallel with rayon, and a nested parallel jwalk on a busy pool returns
+/// errors instead of entries (which made folders and apps show 0 bytes).
 pub fn size_of(p: &Path) -> u64 {
     let Ok(md) = fs::symlink_metadata(p) else { return 0 };
     if md.file_type().is_symlink() {
@@ -41,6 +85,7 @@ pub fn size_of(p: &Path) -> u64 {
     jwalk::WalkDir::new(p)
         .skip_hidden(false)
         .follow_links(false)
+        .parallelism(jwalk::Parallelism::Serial)
         .into_iter()
         .filter_map(Result::ok)
         .filter(|e| e.file_type.is_file())
@@ -58,7 +103,11 @@ pub fn fmt_size(b: u64) -> String {
         v /= 1000.0;
         i += 1;
     }
-    if i == 0 { format!("{b} bytes") } else { format!("{v:.1} {}", U[i]) }
+    if i == 0 {
+        format!("{b} bytes")
+    } else {
+        format!("{v:.1} {}", U[i])
+    }
 }
 
 pub fn fmt_age(t: Option<SystemTime>) -> String {
@@ -99,6 +148,7 @@ pub fn delete_permanently(items: &[(PathBuf, u64)]) -> (u64, usize) {
             Err(_) => failed += 1,
         }
     }
+    bump();
     (freed, failed)
 }
 
@@ -107,7 +157,29 @@ pub fn move_to_trash(paths: &[PathBuf]) -> Result<(), String> {
     if paths.is_empty() {
         return Ok(());
     }
-    trash::delete_all(paths).map_err(|e| e.to_string())
+    let r = trash::delete_all(paths).map_err(|e| e.to_string());
+    bump();
+    r
+}
+
+pub fn trash_dir() -> PathBuf {
+    home().join(".Trash")
+}
+
+pub fn trash_size() -> u64 {
+    size_of(&trash_dir())
+}
+
+/// Permanently deletes everything in ~/.Trash. Returns (freed, failed).
+pub fn empty_trash() -> (u64, usize) {
+    let items: Vec<(PathBuf, u64)> = children(&trash_dir())
+        .into_iter()
+        .map(|p| {
+            let s = size_of(&p);
+            (p, s)
+        })
+        .collect();
+    delete_permanently(&items)
 }
 
 /// (total, available) bytes of the startup volume.

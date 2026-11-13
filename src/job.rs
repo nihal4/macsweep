@@ -1,7 +1,7 @@
 //! Runs work on a background thread so the UI never freezes.
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc::{Receiver, channel};
-use std::sync::Arc;
 
 pub struct Job<T> {
     rx: Receiver<T>,
