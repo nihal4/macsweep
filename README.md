@@ -1,53 +1,95 @@
-# MacSweep (Rust)
+<div align="center">
 
-A fast, lightweight Mac cleaner written in Rust with [egui](https://github.com/emilk/egui), inspired by CleanMyMac's look:
-animated gradient backgrounds per section, glass cards, big round action buttons, real app icons and the system San Francisco font.
+# MacSweep
 
-- **Fast:** folder sizes and the home-folder scan run on every CPU core (`jwalk` + `rayon`), and all work happens off the UI thread.
-- **Light:** a single ~6 MB native binary. There's no browser engine, and the UI only redraws when something changes, so it uses 0% CPU when idle.
+**A fast, lightweight Mac cleaner written in Rust.**
+Clean junk, find big forgotten files, fully uninstall apps and remove orphaned background items, in a native app of about 7 MB.
 
-| Section | What it does |
+![Smart Scan](docs/smart-scan-results.jpg)
+
+[**Download the latest release**](https://github.com/nihal4/macsweep/releases/latest) · Apple Silicon & Intel · macOS 11+
+
+</div>
+
+## Features
+
+| | |
 |---|---|
-| Smart Scan | One-click scan with a category summary, Clean button and a "cleaned" result screen |
-| System Junk | User caches, logs, Xcode build data, npm/Gradle caches, ML model caches (off by default), Mail attachments, Trash. **Deleted permanently** after confirmation |
-| Large & Old Files | Home-folder scan grouped by kind (videos, archives, installers, models & data…), "not opened in a year" filter, sortable. Moves to Trash |
-| Uninstaller | Every app with its icon, version, App Store / Apple Silicon / Intel badges, last-opened date and true size **including leftovers**. Multi-select, quits running apps, moves everything to Trash |
-| Launch Agents | User and global agents and daemons; flags **orphaned** items whose program no longer exists |
+| **Smart Scan** | One click finds caches, logs, build leftovers and Trash, and shows a summary by category. |
+| **System Junk** | Review every category and file before cleaning, with per-file checkboxes. Developer and ML-model caches are included (ML caches are off by default). |
+| **Large & Old Files** | Scans your home folder for big files, grouped by kind (videos, archives, installers, models & data…), with a "not opened in a year" filter. |
+| **Uninstaller** | Every app with its icon, version, App Store / Apple Silicon / Intel badges, last-opened date and **true size including leftovers**. Quits the app, then removes it and its support files. Select several at once. |
+| **Launch Agents** | Lists background helpers and flags **orphaned** ones whose app is already gone. |
+| **Live disk & Trash** | The sidebar always shows free space and Trash size, updates right after every clean, and has a one-click **Empty Trash**. |
 
-The sidebar always shows **live free space and Trash size** (refreshed every 2 s and right after any clean), with a one-click **Empty Trash**.
+<table>
+<tr>
+<td><img src="docs/uninstaller.jpg" alt="Uninstaller"></td>
+<td><img src="docs/large-files.jpg" alt="Large & Old Files"></td>
+</tr>
+<tr>
+<td><img src="docs/system-junk.jpg" alt="System Junk"></td>
+<td><img src="docs/cleaned.jpg" alt="Cleaned"></td>
+</tr>
+</table>
 
-## Build
+## Why Rust
+
+- **Fast:** scans use every CPU core (`jwalk` + `rayon`) and run off the UI thread, so the window never freezes.
+- **Light:** one native binary drawn with [egui](https://github.com/emilk/egui) and OpenGL, with no browser engine inside. The UI only redraws when something changes, and the system font is memory-mapped instead of copied into RAM.
+
+## Install
+
+1. Download `MacSweep-x.y.z.zip` from [Releases](https://github.com/nihal4/macsweep/releases/latest), unzip it, and move **MacSweep** to Applications.
+2. The app isn't notarized by Apple yet, so the first time, right-click it → **Open** → **Open**. Or run:
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/MacSweep.app
+   ```
+3. Turn on **System Settings → Privacy & Security → Full Disk Access** for MacSweep, then reopen it. Without this, the Trash and Mail can't be scanned.
+4. The first time you remove something, allow MacSweep to control **Finder**. It uses Finder to move files to the Trash, so "Put Back" works.
+
+## Build from source
 
 ```bash
-# one-time: install Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-cd macsweep-rs
-cargo run --release     # run directly
-./bundle.sh             # build dist/MacSweep.app
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh   # one-time Rust install
+git clone https://github.com/nihal4/macsweep && cd macsweep
+./bundle.sh                 # dist/MacSweep.app for this Mac
+UNIVERSAL=1 ./bundle.sh     # Apple Silicon + Intel in one app
 ```
 
-Move `MacSweep.app` to /Applications, then enable it under **System Settings → Privacy & Security → Full Disk Access**. The first time you trash something, macOS asks to let MacSweep control Finder; allow it.
-Each rebuild changes the ad-hoc signature, so you may need to toggle Full Disk Access off and on again.
+Each rebuild changes the ad-hoc signature, so you may need to switch Full Disk Access off and on again.
 
 ## Safety
 
-- Junk cleaning only deletes the *contents* of the listed folders and refuses any path outside your home folder.
-- `com.apple.*` apps are never listed in the uninstaller.
-- Everything except junk goes to the Trash (via Finder, so "Put Back" works).
-- Review the leftover checkboxes before uninstalling; matching is conservative but not perfect.
+- Junk cleaning only deletes the *contents* of known cache, log and build folders, and refuses any path outside your home folder.
+- Apps whose bundle ID starts with `com.apple.` never appear in the uninstaller.
+- Uninstalled apps, large files and launch agents go to the **Trash**, so you can undo. Only junk is deleted permanently, after you confirm.
+- Leftover matching is conservative (bundle ID or exact app name), and you can untick anything before removing it.
 
-## Code layout
+## Releasing
+
+Bump `version` in `Cargo.toml`, then:
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+GitHub Actions builds a universal `.app` and attaches the zip to a new release (see `.github/workflows/release.yml`).
+
+## Project layout
 
 ```
 src/main.rs        window, sidebar, Smart Scan, live disk/Trash
 src/theme.rs       fonts, colours, gradients, round buttons, cards
-src/job.rs         background-thread jobs with progress & cancel
+src/job.rs         background jobs with progress & cancel
 src/fsutil.rs      sizes, delete/trash, disk info, permissions
 src/junk.rs        System Junk
 src/large.rs       Large & Old Files
-src/uninstall.rs   App Uninstaller
+src/uninstall.rs   Uninstaller (icons, arch detection, leftovers)
 src/agents.rs      Launch Agents
 ```
 
+## Credits
+
 Icons: [Phosphor](https://phosphoricons.com) (MIT, see `assets/PHOSPHOR-LICENSE`).
+Screenshots were taken on a test machine with sample data; on macOS the app uses the system San Francisco font.
