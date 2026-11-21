@@ -4,6 +4,7 @@ mod fsutil;
 mod job;
 mod junk;
 mod large;
+mod monitor;
 mod theme;
 mod uninstall;
 
@@ -19,10 +20,19 @@ enum Pane {
     Dupes,
     Apps,
     Agents,
+    Monitor,
 }
 
 impl Pane {
-    const ALL: [Pane; 6] = [Pane::Smart, Pane::Junk, Pane::Large, Pane::Dupes, Pane::Apps, Pane::Agents];
+    const ALL: [Pane; 7] = [
+        Pane::Smart,
+        Pane::Junk,
+        Pane::Large,
+        Pane::Dupes,
+        Pane::Apps,
+        Pane::Agents,
+        Pane::Monitor,
+    ];
     fn title(self) -> &'static str {
         match self {
             Pane::Smart => "Smart Scan",
@@ -31,6 +41,7 @@ impl Pane {
             Pane::Dupes => "Duplicates",
             Pane::Apps => "Uninstaller",
             Pane::Agents => "Launch Agents",
+            Pane::Monitor => "Menu Bar Monitor",
         }
     }
     fn glyph(self) -> &'static str {
@@ -41,6 +52,7 @@ impl Pane {
             Pane::Dupes => icon::COPY,
             Pane::Apps => icon::PACKAGE,
             Pane::Agents => icon::ROCKET_LAUNCH,
+            Pane::Monitor => icon::GAUGE,
         }
     }
     fn palette(self) -> Palette {
@@ -51,6 +63,7 @@ impl Pane {
             Pane::Dupes => theme::DUPES,
             Pane::Apps => theme::APPS,
             Pane::Agents => theme::AGENTS,
+            Pane::Monitor => theme::MONITOR,
         }
     }
 }
@@ -167,12 +180,15 @@ struct App {
     dupes: dupes::Dupes,
     apps: uninstall::Uninstaller,
     agents: agents::Agents,
+    monitor: monitor::Monitor,
     sys: Sys,
 }
 
 impl App {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
         theme::setup(&cc.egui_ctx);
+        // If MacSweep was moved or updated, keep the monitor pointing at this copy.
+        std::thread::spawn(monitor::repair_on_launch);
         Self {
             failure: None,
             pane: Pane::Smart,
@@ -183,6 +199,7 @@ impl App {
             dupes: Default::default(),
             apps: Default::default(),
             agents: Default::default(),
+            monitor: Default::default(),
             sys: Sys::new(),
         }
     }
@@ -563,6 +580,7 @@ impl eframe::App for App {
                 Pane::Dupes => self.dupes.ui(ui, p),
                 Pane::Apps => self.apps.ui(ui, p),
                 Pane::Agents => self.agents.ui(ui, p),
+                Pane::Monitor => self.monitor.ui(ui, p),
             });
     }
 }

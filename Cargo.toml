@@ -1,6 +1,6 @@
 [package]
 name = "macsweep"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 description = "A fast, lightweight, open-source Mac cleaner"
 license = "MIT"
@@ -22,6 +22,9 @@ trash = "5.3.0"
 # Linux only so the code can be checked on Linux; macOS needs nothing extra
 [target.'cfg(target_os = "linux")'.dependencies]
 eframe = { version = "0.37.0", default-features = false, features = ["glow", "default_fonts", "x11"] }
+
+[workspace]
+members = [".", "monitor"]
 
 [profile.release]
 opt-level = 3

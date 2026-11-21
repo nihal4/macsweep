@@ -37,6 +37,10 @@ pub mod icon {
     pub const COPY: &str = "\u{E1CA}";
     pub const EYE: &str = "\u{E220}";
     pub const FOLDER_OPEN: &str = "\u{E256}";
+    pub const GAUGE: &str = "\u{E628}";
+    pub const CPU: &str = "\u{E610}";
+    pub const PULSE: &str = "\u{E000}";
+    pub const POWER: &str = "\u{E3DA}";
 }
 
 /// Background gradient + accent for one section.
@@ -76,6 +80,12 @@ pub const AGENTS: Palette = Palette {
     top: Color32::from_rgb(0x0b, 0x2a, 0x3c),
     bottom: Color32::from_rgb(0x1a, 0x84, 0x96),
     accent: Color32::from_rgb(0x42, 0xd2, 0xe0),
+};
+
+pub const MONITOR: Palette = Palette {
+    top: Color32::from_rgb(0x10, 0x1c, 0x2c),
+    bottom: Color32::from_rgb(0x3a, 0x5a, 0x7a),
+    accent: Color32::from_rgb(0x8c, 0xc8, 0xff),
 };
 
 pub const DANGER: Color32 = Color32::from_rgb(0xff, 0x5f, 0x6d);

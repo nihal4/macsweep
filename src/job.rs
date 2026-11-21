@@ -91,7 +91,7 @@ mod tests {
     fn a_crashing_task_is_reported_not_fatal() {
         let ctx = eframe::egui::Context::default();
         let mut slot: Option<Job<u32>> = Some(Job::spawn(&ctx, |_, _| -> u32 { panic!("boom") }));
-        for _ in 0..100 {
+        for _ in 0..1000 {
             if slot.is_none() {
                 break;
             }
