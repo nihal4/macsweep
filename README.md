@@ -8,6 +8,7 @@
 Clean junk, find big forgotten files, fully uninstall apps and remove orphaned background items, all from a ~7 MB native app.
 
 [![Latest release](https://img.shields.io/github/v/release/nihal4/macsweep?label=download&color=c04fd0)](https://github.com/nihal4/macsweep/releases/latest)
+[![CI](https://github.com/nihal4/macsweep/actions/workflows/ci.yml/badge.svg)](https://github.com/nihal4/macsweep/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 ![macOS 11+](https://img.shields.io/badge/macOS-11%2B-black?logo=apple)
 ![Apple Silicon & Intel](https://img.shields.io/badge/Apple%20Silicon%20%26%20Intel-universal-555)
